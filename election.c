@@ -175,7 +175,7 @@ int main(int argc, char **argv)
                 int vote_result;
                 mq_receive(mq1, (char *)&vote_result, sizeof(int), 0);
                 votes[i] = vote_result;
-                printf("%i\n", vote_result);
+                printf("%d. voted: %d\n", i + 1, vote_result);
             }
 
             announce_winner_party(votes, eligible_to_vote);
