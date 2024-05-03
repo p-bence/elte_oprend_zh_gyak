@@ -111,6 +111,8 @@ int main(int argc, char **argv)
             fprintf(file, "Eligible to elect ratio: %2.f%%\n", voters_result.non_eligible == 0 ? 100 : (double)voters_result.eligible / sum * 100);
             fprintf(file, "Not eligible to elect ratio: %2.f%%", voters_result.eligible == 0 ? 100 : (double)voters_result.non_eligible / sum * 100);
 
+            //...print to stdout
+
             fclose(file);
 
             int status;
