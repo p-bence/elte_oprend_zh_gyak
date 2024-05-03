@@ -11,6 +11,8 @@
 #include <time.h>
 #include <stdbool.h>
 
+#define NUMBER_OF_PARTIES 6
+
 typedef struct
 {
     int id;
@@ -31,6 +33,45 @@ void handler()
 bool simulate_error()
 {
     return rand() % 10 > 1;
+}
+
+int get_random_int(int min, int max)
+{
+    return min + rand() % (max - min + 1);
+}
+
+void announce_winner_party(int *votes, int length)
+{
+    int *results = (int *)malloc(NUMBER_OF_PARTIES * sizeof(int));
+    for (int i = 0; i < NUMBER_OF_PARTIES; i++)
+    {
+        results[i] = 0;
+    }
+
+    for (int i = 0; i < length; i++)
+    {
+        results[votes[i] - 1]++;
+    }
+
+    if (length == 0)
+    {
+        printf("No valid votes: election is draw.\n");
+        return;
+    }
+
+    int winner_index = 0;
+
+    for (int i = 0; i < NUMBER_OF_PARTIES; i++)
+    {
+        if (results[i] > results[winner_index])
+        {
+            winner_index = i;
+        }
+    }
+
+    printf("The winner is: %d \n", winner_index + 1);
+
+    free(results);
 }
 
 int main(int argc, char **argv)
@@ -60,6 +101,15 @@ int main(int argc, char **argv)
     }
 
     int fd;
+
+    char *mqname = "/siwib4_mq";
+    struct mq_attr attr;
+    mqd_t mq1;
+    attr.mq_maxmsg = atoi(argv[1]) + 1;
+    attr.mq_msgsize = sizeof(int);
+    //
+    mq_unlink(mqname);
+    mq1 = mq_open(mqname, O_CREAT | O_RDWR, 0600, &attr);
 
     child1 = fork();
 
@@ -115,6 +165,22 @@ int main(int argc, char **argv)
 
             fclose(file);
 
+            pause();
+            int eligible_to_vote;
+            mq_receive(mq1, (char *)&eligible_to_vote, sizeof(int), 0);
+
+            int *votes = (int *)malloc(eligible_to_vote * sizeof(int));
+            for (int i = 0; i < eligible_to_vote; i++)
+            {
+                int vote_result;
+                mq_receive(mq1, (char *)&vote_result, sizeof(int), 0);
+                votes[i] = vote_result;
+                printf("%i\n", vote_result);
+            }
+
+            announce_winner_party(votes, eligible_to_vote);
+
+            free(votes);
             int status;
             waitpid(child1, &status, 0);
             waitpid(child2, &status, 0);
@@ -170,6 +236,17 @@ int main(int argc, char **argv)
         }
         fd = open(pipename, O_WRONLY);
         write(fd, &voters_result, sizeof(VotersResult));
+
+        mq_send(mq1, (char *)&voters_result.eligible, sizeof(int), 5);
+        for (int i = 0; i < voters_result.eligible; i++)
+        {
+            int random_party = get_random_int(1, NUMBER_OF_PARTIES);
+            mq_send(mq1, (char *)&random_party, sizeof(int), 5);
+        }
+        sleep(1);
+        kill(getppid(), SIGUSR1);
+
+        mq_close(mq1);
         close(fd);
         free(voters);
     }
